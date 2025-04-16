@@ -20,7 +20,7 @@
       padding: 10px 0;
       text-align: center;
     }
-    /* Fixed toolbar for controls */
+    /* Fixed toolbar for controls – always visible */
     #controls {
       position: fixed;
       top: 0;
@@ -55,7 +55,7 @@
     /* Hidden state file input */
     #stateFileInput { display: none; }
     
-    /* Container for cards using a responsive CSS Grid */
+    /* Container for cards using a responsive grid */
     #output {
       margin-top: 90px; /* To avoid being hidden by the fixed toolbar */
       display: grid;
@@ -164,18 +164,18 @@
       font-size: 16px;
       margin: 0 10px;
     }
-    /* Error messages */
+    /* Error message styling */
     .error {
       color: red;
       text-align: center;
       margin-top: 10px;
     }
-    /* Active export view: card expands to occupy full available space */
+    /* Active export view: Expand to use the maximum available horizontal space */
     .active-card {
       flex-direction: row;
       width: 100% !important;
-      max-width: 1200px;
-      margin: auto;
+      max-width: none;
+      margin: 0;
     }
     /* Wrap original card content into .card-main */
     .card-main {
@@ -302,7 +302,7 @@
     <!-- Save State and Load State buttons -->
     <button id="saveStateBtn">Save State</button>
     <button id="loadStateBtn">Load State</button>
-    <input type="file" id="stateFileInput" accept=".json" style="display:none">
+    <input type="file" id="stateFileInput" accept=".json">
     <!-- Clear Data Button -->
     <button id="clearBtn">Clear Data</button>
   </div>
@@ -336,7 +336,7 @@
     </FOLDER>
 </DEFTABLE>`;
     
-    // Convert dates of the form "/Date(1375308614977)/" to human‑readable UTC strings.
+    // Convert dates of the form "/Date(1375308614977)/" to human‑readable UTC.
     function convertDates(data) {
       if (Array.isArray(data)) {
         return data.map(item => convertDates(item));
@@ -372,7 +372,7 @@
       }
     });
     
-    // Global collapse/expand all.
+    // Global collapse/expand all toggle.
     document.getElementById('toggleAllBtn').addEventListener('click', function() {
       const containers = document.querySelectorAll('.collapsible-container');
       if (!allCollapsed) {
@@ -398,15 +398,13 @@
       }
     });
     
-    // Save State: iterate over current cards, extract key–value pairs.
+    // Save State: Export current state to a JSON file.
     document.getElementById('saveStateBtn').addEventListener('click', function() {
       const state = [];
       const cards = document.querySelectorAll('.card');
       cards.forEach(card => {
-        // Get header text as Name.
         const header = card.querySelector('.card-header');
         const stateObj = { Name: header ? header.textContent : "" };
-        // Find card content table.
         const content = card.querySelector('.card-content');
         if (content) {
           const rows = content.querySelectorAll('table tr');
@@ -414,7 +412,6 @@
             const keyCell = row.querySelector('th');
             const valueCell = row.querySelector('td');
             if (keyCell && valueCell) {
-              // Use innerText which reflects any editable modifications.
               stateObj[keyCell.textContent] = valueCell.innerText;
             }
           });
@@ -432,7 +429,7 @@
       URL.revokeObjectURL(url);
     });
     
-    // Load State: trigger hidden file input.
+    // Load State: Trigger hidden file input for state.
     document.getElementById('loadStateBtn').addEventListener('click', function() {
       document.getElementById('stateFileInput').click();
     });
@@ -444,7 +441,6 @@
       reader.onload = function(event) {
         try {
           const stateData = JSON.parse(event.target.result);
-          // Set the full state.
           fullData = stateData;
           activeData = fullData;
           currentPage = 1;
@@ -457,7 +453,7 @@
       reader.readAsText(file);
     });
     
-    // File input handler for JSON import – converts dates.
+    // File input handler for JSON import – convert dates.
     document.getElementById('jsonFileInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -552,7 +548,7 @@
       return document.createTextNode(String(value));
     }
     
-    // Helper to create a collapsible container for long text.
+    // Helper to create a collapsible container.
     function createCollapsibleDiv(textNode) {
       const container = document.createElement('div');
       container.classList.add('collapsible-container');
@@ -614,7 +610,6 @@
         const card = document.createElement('div');
         card.classList.add('card');
   
-        // Use "Name" property for header.
         const headerText = (obj.Name && obj.Name !== null) ? obj.Name : `Record ${startIndex + index + 1}`;
         const header = document.createElement('div');
         header.classList.add('card-header');
@@ -640,7 +635,6 @@
         card.appendChild(topExportContainer);
         // --- End Top Export Button ---
   
-        // Card content.
         const content = document.createElement('div');
         content.classList.add('card-content');
         const table = document.createElement('table');
@@ -694,7 +688,6 @@
   
         card.appendChild(content);
   
-        // Toggle content on header click.
         header.addEventListener('click', () => {
           content.style.display = (content.style.display === 'block') ? 'none' : 'block';
         });
@@ -900,7 +893,7 @@
       return container;
     }
     
-    // Update XML DOM with values from the form.
+    // Update the XML DOM with values from the form.
     function updateXmlFromForm(xmlDoc, xmlForm) {
       const inputs = xmlForm.querySelectorAll('input[type="text"]');
       const allElements = xmlDoc.getElementsByTagName("*");
@@ -914,7 +907,7 @@
       });
     }
     
-    // Trigger download of XML content.
+    // Trigger download of the XML content.
     function downloadXML(xmlContent, fileName) {
       const blob = new Blob([xmlContent], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
@@ -927,7 +920,7 @@
       URL.revokeObjectURL(url);
     }
     
-    // Close export panel and restore UI.
+    // Close the export panel and restore the UI.
     function closeExportPanel(card, exportPanel) {
       if (exportPanel && card.contains(exportPanel)) {
         card.removeChild(exportPanel);
