@@ -1,25 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <!-- Ensure proper scaling on mobile devices -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>JSON Parser, Search, Editable & Export Viewer</title>
   <style>
     /* Basic resets and body styling */
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
+      margin: 0;
       background-color: #f6f6f6;
       color: #333;
+      /* Padding top to prevent content being hidden behind fixed toolbar */
+      padding-top: 90px;
     }
     h1 {
+      margin: 0;
+      padding: 10px 0;
       text-align: center;
     }
-    /* Controls area: file, search, and view toggle */
+    /* Fixed toolbar for controls */
     #controls {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #f6f6f6;
+      border-bottom: 1px solid #ddd;
+      z-index: 1000;
+      padding: 10px;
       text-align: center;
-      margin-bottom: 20px;
     }
     #controls input[type="file"],
     #controls input[type="text"] {
@@ -35,30 +46,39 @@
       font-size: 16px;
       margin-left: 10px;
     }
-    /* Container for card output */
+    #controls button {
+      padding: 8px 16px;
+      font-size: 16px;
+      margin: 5px;
+      cursor: pointer;
+    }
+    /* Hidden state file input */
+    #stateFileInput { display: none; }
+    
+    /* Container for cards using a responsive CSS Grid */
     #output {
-      display: flex;
-      flex-wrap: wrap;
+      margin-top: 90px; /* To avoid being hidden by the fixed toolbar */
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
       gap: 20px;
-      justify-content: center;
       transition: all 0.3s ease;
+      padding: 10px;
     }
-    /* If column view is active, display cards in column */
+    /* Column view forces one column */
     #output.column-view {
-      flex-direction: column;
-      align-items: center;
+      grid-template-columns: 1fr;
     }
-    /* Card styling for each record */
+    /* Card styling */
     .card {
       background-color: #fff;
       border: 1px solid #ddd;
       border-radius: 8px;
-      width: 350px;
-      max-width: 100%;
+      width: 100%;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       overflow: hidden;
       transition: box-shadow 0.3s, width 0.3s;
-      display: block;
+      display: flex;
+      flex-direction: column;
     }
     .card:hover {
       box-shadow: 0 4px 8px rgba(0,0,0,0.2);
@@ -73,9 +93,35 @@
     .card-header:hover {
       background-color: #005fa3;
     }
+    /* Top export button container – centered */
+    .top-export-btn-container {
+      padding: 8px 16px;
+      background-color: #f9f9f9;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+    }
+    /* Bottom export button container */
+    .export-btn-container {
+      padding: 10px 16px;
+      background-color: #f9f9f9;
+      text-align: center;
+      border-top: 1px solid #ddd;
+    }
+    .export-btn {
+      background-color: #28a745;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .export-btn:hover {
+      background-color: #218838;
+    }
     .card-content {
       padding: 16px;
-      display: none; /* Initially hidden; toggled on header click */
+      display: block; /* Start expanded */
     }
     .card-content table {
       width: 100%;
@@ -96,26 +142,7 @@
     .checkbox-cell {
       text-align: center;
     }
-    /* Export button container styling */
-    .export-btn-container {
-      text-align: center;
-      padding: 10px;
-      border-top: 1px solid #ddd;
-      background-color: #f9f9f9;
-    }
-    .export-btn {
-      background-color: #28a745;
-      color: #fff;
-      border: none;
-      padding: 8px 16px;
-      font-size: 16px;
-      cursor: pointer;
-      border-radius: 4px;
-    }
-    .export-btn:hover {
-      background-color: #218838;
-    }
-    /* Pagination controls styling */
+    /* Global pagination controls */
     #pagination-controls {
       margin-top: 20px;
       text-align: center;
@@ -137,21 +164,20 @@
       font-size: 16px;
       margin: 0 10px;
     }
-    /* Error message styling */
+    /* Error messages */
     .error {
       color: red;
       text-align: center;
       margin-top: 10px;
     }
-    /* Active export view: the expanded card takes full available space */
+    /* Active export view: card expands to occupy full available space */
     .active-card {
-      display: flex;
       flex-direction: row;
       width: 100% !important;
       max-width: 1200px;
       margin: auto;
     }
-    /* The original card content is wrapped into .card-main */
+    /* Wrap original card content into .card-main */
     .card-main {
       flex: 1;
       margin-right: 20px;
@@ -166,6 +192,11 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+    }
+    /* Top XML export button container in export panel – centered */
+    .top-xml-btn-container {
+      padding: 8px 0;
+      text-align: center;
     }
     /* XML edit form styles */
     .xml-section {
@@ -216,14 +247,28 @@
       border: 1px solid #ccc;
       padding: 4px;
     }
+    /* Collapsible container for long text values */
+    .collapsible-container {
+      white-space: pre-wrap;
+      position: relative;
+    }
+    .collapsible-container.collapsed {
+      max-height: 60px;
+      overflow: hidden;
+    }
+    .collapsible-toggle {
+      display: inline-block;
+      background: none;
+      border: none;
+      color: #0077cc;
+      cursor: pointer;
+      font-size: 12px;
+      margin-top: 5px;
+    }
     /* Responsive adjustments */
     @media (max-width: 600px) {
-      .card {
-        width: 100%;
-      }
-      .pagination-btn {
-        width: 100px;
-        margin-bottom: 10px;
+      #output {
+        grid-template-columns: 1fr;
       }
       .active-card {
         flex-direction: column;
@@ -247,11 +292,19 @@
   <div id="controls">
     <input type="file" id="jsonFileInput" accept=".json">
     <input type="text" id="searchInput" placeholder="Search JSON...">
-    <!-- Toggle between Card view and Column view -->
+    <!-- Toggle between Card and Column view -->
     <label>
       <input type="checkbox" id="viewToggle">
       Column View
     </label>
+    <!-- Global collapse/expand all toggle -->
+    <button id="toggleAllBtn">Collapse All</button>
+    <!-- Save State and Load State buttons -->
+    <button id="saveStateBtn">Save State</button>
+    <button id="loadStateBtn">Load State</button>
+    <input type="file" id="stateFileInput" accept=".json" style="display:none">
+    <!-- Clear Data Button -->
+    <button id="clearBtn">Clear Data</button>
   </div>
   
   <!-- Container for cards -->
@@ -260,16 +313,19 @@
   <div id="pagination-controls"></div>
   
   <script>
-    // Global variables for pagination and data storage
+    // Global variables for pagination and data storage.
     let fullData = [];
     let activeData = [];
     let currentPage = 1;
-    const itemsPerPage = 50; // Adjust for performance
+    const itemsPerPage = 50;
     
-    // Global variable to track view mode: false = Card View, true = Column View.
+    // Track view mode: false = Card View, true = Column View.
     let isColumnView = false;
     
-    // Base XML template (Control-M XML Template)
+    // Global collapse state.
+    let allCollapsed = false;
+    
+    // Base XML template.
     const baseXMLTemplate = `<?xml version="1.0" encoding="utf-8"?>
 <!--Exported at {{EXPORT_DATE}}-->
 <DEFTABLE xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="Folder.xsd">
@@ -280,7 +336,32 @@
     </FOLDER>
 </DEFTABLE>`;
     
-    // Event listener for view toggle switch
+    // Convert dates of the form "/Date(1375308614977)/" to human‑readable UTC strings.
+    function convertDates(data) {
+      if (Array.isArray(data)) {
+        return data.map(item => convertDates(item));
+      } else if (typeof data === "object" && data !== null) {
+        const newObj = {};
+        for (const key in data) {
+          if (data.hasOwnProperty(key)) {
+            let value = data[key];
+            if (typeof value === "string") {
+              const match = value.match(/^\/Date\((\d+)\)\/$/);
+              if (match) {
+                value = new Date(parseInt(match[1], 10)).toUTCString();
+              }
+            } else if (typeof value === "object") {
+              value = convertDates(value);
+            }
+            newObj[key] = value;
+          }
+        }
+        return newObj;
+      }
+      return data;
+    }
+    
+    // Event listener for view toggle.
     document.getElementById('viewToggle').addEventListener('change', function() {
       isColumnView = this.checked;
       const output = document.getElementById('output');
@@ -291,14 +372,100 @@
       }
     });
     
-    // File input handler – load and parse JSON
+    // Global collapse/expand all.
+    document.getElementById('toggleAllBtn').addEventListener('click', function() {
+      const containers = document.querySelectorAll('.collapsible-container');
+      if (!allCollapsed) {
+        containers.forEach(container => container.classList.add('collapsed'));
+        this.textContent = "Expand All";
+        allCollapsed = true;
+      } else {
+        containers.forEach(container => container.classList.remove('collapsed'));
+        this.textContent = "Collapse All";
+        allCollapsed = false;
+      }
+    });
+    
+    // Clear Data Button with confirmation.
+    document.getElementById('clearBtn').addEventListener('click', function() {
+      if (confirm("Are you sure you want to clear all data?")) {
+        fullData = [];
+        activeData = [];
+        currentPage = 1;
+        document.getElementById('output').innerHTML = "";
+        document.getElementById('pagination-controls').innerHTML = "";
+        document.getElementById('jsonFileInput').value = "";
+      }
+    });
+    
+    // Save State: iterate over current cards, extract key–value pairs.
+    document.getElementById('saveStateBtn').addEventListener('click', function() {
+      const state = [];
+      const cards = document.querySelectorAll('.card');
+      cards.forEach(card => {
+        // Get header text as Name.
+        const header = card.querySelector('.card-header');
+        const stateObj = { Name: header ? header.textContent : "" };
+        // Find card content table.
+        const content = card.querySelector('.card-content');
+        if (content) {
+          const rows = content.querySelectorAll('table tr');
+          rows.forEach(row => {
+            const keyCell = row.querySelector('th');
+            const valueCell = row.querySelector('td');
+            if (keyCell && valueCell) {
+              // Use innerText which reflects any editable modifications.
+              stateObj[keyCell.textContent] = valueCell.innerText;
+            }
+          });
+        }
+        state.push(stateObj);
+      });
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "saved_state.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+    
+    // Load State: trigger hidden file input.
+    document.getElementById('loadStateBtn').addEventListener('click', function() {
+      document.getElementById('stateFileInput').click();
+    });
+    
+    document.getElementById('stateFileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        try {
+          const stateData = JSON.parse(event.target.result);
+          // Set the full state.
+          fullData = stateData;
+          activeData = fullData;
+          currentPage = 1;
+          renderPage(currentPage);
+          renderPaginationControls();
+        } catch (error) {
+          displayError("Error loading state: " + error.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+    
+    // File input handler for JSON import – converts dates.
     document.getElementById('jsonFileInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function(event) {
         try {
-          const jsonData = JSON.parse(event.target.result);
+          let jsonData = JSON.parse(event.target.result);
+          jsonData = convertDates(jsonData);
           fullData = Array.isArray(jsonData) ? jsonData : [jsonData];
           activeData = fullData;
           currentPage = 1;
@@ -311,7 +478,7 @@
       reader.readAsText(file);
     });
     
-    // Global search handler
+    // Global search handler.
     document.getElementById('searchInput').addEventListener('input', function() {
       const searchTerm = this.value.trim().toLowerCase();
       if (!searchTerm) {
@@ -331,12 +498,12 @@
       renderPaginationControls();
     });
     
-    // Display error messages
+    // Display error messages.
     function displayError(message) {
       document.getElementById('output').innerHTML = `<div class="error">${message}</div>`;
     }
     
-    // Helper function to create a sub-table if a value is a JSON object/array.
+    // Helper function to create a sub-table for nested JSON.
     function createSubTable(json) {
       const table = document.createElement('table');
       table.classList.add('sub-table');
@@ -377,7 +544,7 @@
       return table;
     }
     
-    // Modified formatValue: Always return a Node.
+    // Modified formatValue: Always returns a DOM Node.
     function formatValue(value) {
       if (typeof value === "object" && value !== null) {
         return createSubTable(value);
@@ -385,7 +552,52 @@
       return document.createTextNode(String(value));
     }
     
-    // Render the current page of JSON object cards.
+    // Helper to create a collapsible container for long text.
+    function createCollapsibleDiv(textNode) {
+      const container = document.createElement('div');
+      container.classList.add('collapsible-container');
+      container.appendChild(textNode);
+      const toggleBtn = document.createElement('button');
+      toggleBtn.classList.add('collapsible-toggle');
+      toggleBtn.textContent = "Collapse";
+      toggleBtn.addEventListener('click', function() {
+        container.classList.toggle('collapsed');
+        if (container.classList.contains('collapsed')) {
+          toggleBtn.textContent = "Expand";
+        } else {
+          toggleBtn.textContent = "Collapse";
+        }
+      });
+      container.appendChild(toggleBtn);
+      return container;
+    }
+    
+    // Update collapsible behavior after editing.
+    function updateCollapsible(cell) {
+      let text = cell.innerText || "";
+      const threshold = 100;
+      if ((text.length > threshold || text.indexOf("\n") !== -1) && !cell.querySelector('.collapsible-container')) {
+        const content = cell.innerHTML;
+        const div = document.createElement('div');
+        div.classList.add('collapsible-container');
+        div.innerHTML = content;
+        cell.innerHTML = "";
+        cell.appendChild(div);
+        const toggleBtn = document.createElement('button');
+        toggleBtn.classList.add('collapsible-toggle');
+        toggleBtn.textContent = "Collapse";
+        toggleBtn.addEventListener('click', function() {
+          div.classList.toggle('collapsed');
+          toggleBtn.textContent = div.classList.contains('collapsed') ? "Expand" : "Collapse";
+        });
+        cell.appendChild(toggleBtn);
+      } else if (text.length <= threshold && cell.querySelector('.collapsible-container')) {
+        const container = cell.querySelector('.collapsible-container');
+        cell.innerHTML = container.innerHTML;
+      }
+    }
+    
+    // Render the current page of JSON cards.
     function renderPage(pageNumber) {
       const output = document.getElementById('output');
       output.innerHTML = '';
@@ -402,14 +614,33 @@
         const card = document.createElement('div');
         card.classList.add('card');
   
-        // Create header using "Name" if available.
+        // Use "Name" property for header.
         const headerText = (obj.Name && obj.Name !== null) ? obj.Name : `Record ${startIndex + index + 1}`;
         const header = document.createElement('div');
         header.classList.add('card-header');
         header.textContent = headerText;
         card.appendChild(header);
   
-        // Create card content, building a table for properties.
+        // --- Top Export Button ---
+        const topExportContainer = document.createElement('div');
+        topExportContainer.classList.add('top-export-btn-container');
+        const topExportBtn = document.createElement('button');
+        topExportBtn.classList.add('export-btn');
+        topExportBtn.textContent = 'Export to XML';
+        topExportBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const existingPanel = card.querySelector('.export-panel');
+          if (existingPanel) {
+            closeExportPanel(card, existingPanel);
+          } else {
+            openExportPanel(card, obj);
+          }
+        });
+        topExportContainer.appendChild(topExportBtn);
+        card.appendChild(topExportContainer);
+        // --- End Top Export Button ---
+  
+        // Card content.
         const content = document.createElement('div');
         content.classList.add('card-content');
         const table = document.createElement('table');
@@ -417,19 +648,20 @@
         for (let key in obj) {
           if (obj[key] !== null) {
             const row = document.createElement('tr');
-  
-            // Key cell.
             const cellKey = document.createElement('th');
             cellKey.textContent = key;
             row.appendChild(cellKey);
   
-            // Value cell.
             const cellValue = document.createElement('td');
             const formattedValue = formatValue(obj[key]);
-            cellValue.appendChild(formattedValue);
+            if (formattedValue.nodeType === Node.TEXT_NODE &&
+                (formattedValue.data.length > 100 || formattedValue.data.indexOf("\n") !== -1)) {
+              cellValue.appendChild(createCollapsibleDiv(formattedValue));
+            } else {
+              cellValue.appendChild(formattedValue);
+            }
             row.appendChild(cellValue);
   
-            // Checkbox cell.
             const cellCheckbox = document.createElement('td');
             cellCheckbox.classList.add('checkbox-cell');
             const checkbox = document.createElement('input');
@@ -439,6 +671,9 @@
                 cellValue.contentEditable = "true";
                 cellValue.style.border = "1px dashed #0077cc";
                 cellValue.focus();
+                cellValue.addEventListener('blur', function() {
+                  updateCollapsible(cellValue);
+                });
               } else {
                 cellValue.contentEditable = "false";
                 cellValue.style.border = "none";
@@ -464,7 +699,7 @@
           content.style.display = (content.style.display === 'block') ? 'none' : 'block';
         });
   
-        // Add Export button at the bottom.
+        // --- Bottom Export Button ---
         const exportContainer = document.createElement('div');
         exportContainer.classList.add('export-btn-container');
         const exportBtn = document.createElement('button');
@@ -526,7 +761,6 @@
     
     // --- EXPORT XML FUNCTIONALITY ---
     
-    // Open export panel for a card.
     function openExportPanel(card, jsonObj) {
       document.querySelectorAll('.card').forEach(otherCard => {
         if (otherCard !== card) {
@@ -546,7 +780,6 @@
       
       card.classList.add('active-card');
   
-      // Gather selected properties from the card.
       const selectedFields = {};
       const rows = cardMain.querySelectorAll('table tr');
       rows.forEach(row => {
@@ -576,37 +809,13 @@
       const exportPanel = document.createElement('div');
       exportPanel.classList.add('export-panel');
   
-      // --- Editable Title Section ---
-      const titleSection = document.createElement('div');
-      titleSection.classList.add('xml-section');
-  
-      const titleHeader = document.createElement('h3');
-      titleHeader.textContent = "XML Title";
-      titleSection.appendChild(titleHeader);
-  
-      const titleField = document.createElement('div');
-      titleField.classList.add('xml-field');
-  
-      const titleLabel = document.createElement('label');
-      titleLabel.textContent = "Title:";
-      titleField.appendChild(titleLabel);
-  
-      const titleInput = document.createElement('input');
-      titleInput.type = "text";
-      titleInput.value = jsonObj.Name || "Untitled";
-      titleField.appendChild(titleInput);
-  
-      titleSection.appendChild(titleField);
-      exportPanel.appendChild(titleSection);
-      // --- End Title Section ---
-  
-      const xmlForm = generateXMLForm(xmlDoc);
-      exportPanel.appendChild(xmlForm);
-  
-      const exportXmlBtn = document.createElement('button');
-      exportXmlBtn.classList.add('export-xml-btn');
-      exportXmlBtn.textContent = 'Export XML';
-      exportXmlBtn.addEventListener('click', function() {
+      // --- Top Export XML Button (moved above the XML title) ---
+      const topXmlBtnContainer = document.createElement('div');
+      topXmlBtnContainer.classList.add('top-xml-btn-container');
+      const topXmlBtn = document.createElement('button');
+      topXmlBtn.classList.add('export-xml-btn');
+      topXmlBtn.textContent = 'Export XML';
+      topXmlBtn.addEventListener('click', function() {
         updateXmlFromForm(xmlDoc, xmlForm);
         const serializer = new XMLSerializer();
         const updatedXml = serializer.serializeToString(xmlDoc);
@@ -614,7 +823,46 @@
         downloadXML(updatedXml, fileName);
         closeExportPanel(card, exportPanel);
       });
-      exportPanel.appendChild(exportXmlBtn);
+      topXmlBtnContainer.appendChild(topXmlBtn);
+      exportPanel.appendChild(topXmlBtnContainer);
+      // --- End Top Export XML Button ---
+  
+      // --- Editable Title Section ---
+      const titleSection = document.createElement('div');
+      titleSection.classList.add('xml-section');
+      const titleHeader = document.createElement('h3');
+      titleHeader.textContent = "XML Title";
+      titleSection.appendChild(titleHeader);
+      const titleField = document.createElement('div');
+      titleField.classList.add('xml-field');
+      const titleLabel = document.createElement('label');
+      titleLabel.textContent = "Title:";
+      titleField.appendChild(titleLabel);
+      const titleInput = document.createElement('input');
+      titleInput.type = "text";
+      titleInput.value = jsonObj.Name || "Untitled";
+      titleField.appendChild(titleInput);
+      titleSection.appendChild(titleField);
+      exportPanel.appendChild(titleSection);
+      // --- End Editable Title Section ---
+  
+      const xmlForm = generateXMLForm(xmlDoc);
+      exportPanel.appendChild(xmlForm);
+  
+      // --- Bottom Export XML Button ---
+      const bottomXmlBtn = document.createElement('button');
+      bottomXmlBtn.classList.add('export-xml-btn');
+      bottomXmlBtn.textContent = 'Export XML';
+      bottomXmlBtn.addEventListener('click', function() {
+        updateXmlFromForm(xmlDoc, xmlForm);
+        const serializer = new XMLSerializer();
+        const updatedXml = serializer.serializeToString(xmlDoc);
+        const fileName = (titleInput.value.trim() || "export") + ".xml";
+        downloadXML(updatedXml, fileName);
+        closeExportPanel(card, exportPanel);
+      });
+      exportPanel.appendChild(bottomXmlBtn);
+      // --- End Bottom Export XML Button ---
   
       card.appendChild(exportPanel);
     }
@@ -628,27 +876,22 @@
         if (el.attributes.length > 0) {
           const section = document.createElement('div');
           section.classList.add('xml-section');
-  
           const header = document.createElement('h3');
           header.textContent = el.tagName;
           section.appendChild(header);
-  
           for (let j = 0; j < el.attributes.length; j++) {
             const attr = el.attributes[j];
             const field = document.createElement('div');
             field.classList.add('xml-field');
-  
             const label = document.createElement('label');
             label.textContent = attr.name + ':';
             field.appendChild(label);
-  
             const input = document.createElement('input');
             input.type = "text";
             input.value = attr.value;
             input.dataset.elementIndex = i;
             input.dataset.attributeName = attr.name;
             field.appendChild(input);
-  
             section.appendChild(field);
           }
           container.appendChild(section);
@@ -657,7 +900,7 @@
       return container;
     }
     
-    // Update the XML DOM with new values from the form.
+    // Update XML DOM with values from the form.
     function updateXmlFromForm(xmlDoc, xmlForm) {
       const inputs = xmlForm.querySelectorAll('input[type="text"]');
       const allElements = xmlDoc.getElementsByTagName("*");
@@ -671,7 +914,7 @@
       });
     }
     
-    // Trigger download of the XML content with a given filename.
+    // Trigger download of XML content.
     function downloadXML(xmlContent, fileName) {
       const blob = new Blob([xmlContent], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
@@ -684,7 +927,7 @@
       URL.revokeObjectURL(url);
     }
     
-    // Close the export panel and restore the UI.
+    // Close export panel and restore UI.
     function closeExportPanel(card, exportPanel) {
       if (exportPanel && card.contains(exportPanel)) {
         card.removeChild(exportPanel);
