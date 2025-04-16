@@ -283,7 +283,6 @@
     // Event listener for view toggle switch
     document.getElementById('viewToggle').addEventListener('change', function() {
       isColumnView = this.checked;
-      // Toggle a class on the output container to adjust layout via CSS
       const output = document.getElementById('output');
       if (isColumnView) {
         output.classList.add('column-view');
@@ -341,7 +340,6 @@
     function createSubTable(json) {
       const table = document.createElement('table');
       table.classList.add('sub-table');
-      // If value is an array:
       if (Array.isArray(json)) {
         json.forEach((item, index) => {
           const tr = document.createElement('tr');
@@ -358,7 +356,6 @@
           table.appendChild(tr);
         });
       } else {
-        // Otherwise, assume object
         for (let key in json) {
           if (json.hasOwnProperty(key)) {
             const tr = document.createElement('tr');
@@ -380,15 +377,15 @@
       return table;
     }
     
-    // Modified formatValue: if value is an object/array, create a table.
+    // Modified formatValue: Always return a Node.
     function formatValue(value) {
       if (typeof value === "object" && value !== null) {
         return createSubTable(value);
       }
-      return value;
+      return document.createTextNode(String(value));
     }
     
-    // Render the current page of JSON object cards
+    // Render the current page of JSON object cards.
     function renderPage(pageNumber) {
       const output = document.getElementById('output');
       output.innerHTML = '';
@@ -405,14 +402,14 @@
         const card = document.createElement('div');
         card.classList.add('card');
   
-        // Create header (using "Name" property if available)
+        // Create header using "Name" if available.
         const headerText = (obj.Name && obj.Name !== null) ? obj.Name : `Record ${startIndex + index + 1}`;
         const header = document.createElement('div');
         header.classList.add('card-header');
         header.textContent = headerText;
         card.appendChild(header);
   
-        // Create card content (table of non-null properties with edit checkboxes)
+        // Create card content, building a table for properties.
         const content = document.createElement('div');
         content.classList.add('card-content');
         const table = document.createElement('table');
@@ -421,22 +418,18 @@
           if (obj[key] !== null) {
             const row = document.createElement('tr');
   
-            // Key cell
+            // Key cell.
             const cellKey = document.createElement('th');
             cellKey.textContent = key;
             row.appendChild(cellKey);
   
-            // Value cell: use our modified formatValue.
+            // Value cell.
             const cellValue = document.createElement('td');
             const formattedValue = formatValue(obj[key]);
-            if (typeof formattedValue === "string") {
-              cellValue.textContent = formattedValue;
-            } else {
-              cellValue.appendChild(formattedValue);
-            }
+            cellValue.appendChild(formattedValue);
             row.appendChild(cellValue);
   
-            // Checkbox cell
+            // Checkbox cell.
             const cellCheckbox = document.createElement('td');
             cellCheckbox.classList.add('checkbox-cell');
             const checkbox = document.createElement('input');
@@ -466,12 +459,12 @@
   
         card.appendChild(content);
   
-        // Toggle card content visibility on header click.
+        // Toggle content on header click.
         header.addEventListener('click', () => {
           content.style.display = (content.style.display === 'block') ? 'none' : 'block';
         });
   
-        // Add Export button at the bottom of the card.
+        // Add Export button at the bottom.
         const exportContainer = document.createElement('div');
         exportContainer.classList.add('export-btn-container');
         const exportBtn = document.createElement('button');
@@ -479,7 +472,6 @@
         exportBtn.textContent = 'Export to XML';
         exportBtn.addEventListener('click', function(e) {
           e.stopPropagation();
-          // Toggle export panel on/off.
           const existingPanel = card.querySelector('.export-panel');
           if (existingPanel) {
             closeExportPanel(card, existingPanel);
@@ -494,7 +486,7 @@
       });
     }
     
-    // Render pagination controls
+    // Render pagination controls.
     function renderPaginationControls() {
       const paginationControls = document.getElementById('pagination-controls');
       paginationControls.innerHTML = '';
@@ -534,16 +526,14 @@
     
     // --- EXPORT XML FUNCTIONALITY ---
     
-    // Open export panel for a specific card.
+    // Open export panel for a card.
     function openExportPanel(card, jsonObj) {
-      // Hide all other cards so only the active card is visible.
       document.querySelectorAll('.card').forEach(otherCard => {
         if (otherCard !== card) {
           otherCard.style.display = 'none';
         }
       });
       
-      // Wrap the existing card content into .card-main if not already wrapped.
       let cardMain = card.querySelector('.card-main');
       if (!cardMain) {
         cardMain = document.createElement('div');
@@ -554,10 +544,9 @@
         card.appendChild(cardMain);
       }
       
-      // Mark the card as active so it expands to full available space.
       card.classList.add('active-card');
   
-      // Gather selected properties from the card (those with a checked checkbox).
+      // Gather selected properties from the card.
       const selectedFields = {};
       const rows = cardMain.querySelectorAll('table tr');
       rows.forEach(row => {
@@ -569,11 +558,9 @@
         }
       });
   
-      // Generate current export date string.
       const now = new Date();
       const formattedDate = now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-GB');
   
-      // Prepare the XML content by replacing placeholders in the template using selected fields.
       let xmlContent = baseXMLTemplate.replace('{{EXPORT_DATE}}', formattedDate);
       for (const key in selectedFields) {
         if (selectedFields.hasOwnProperty(key)) {
@@ -583,15 +570,13 @@
         }
       }
   
-      // Parse the XML content into an XML DOM object.
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlContent, "application/xml");
   
-      // Create the export panel container.
       const exportPanel = document.createElement('div');
       exportPanel.classList.add('export-panel');
   
-      // --- EDITABLE TITLE SECTION ---
+      // --- Editable Title Section ---
       const titleSection = document.createElement('div');
       titleSection.classList.add('xml-section');
   
@@ -613,13 +598,11 @@
   
       titleSection.appendChild(titleField);
       exportPanel.appendChild(titleSection);
-      // --- END TITLE SECTION ---
+      // --- End Title Section ---
   
-      // Build an editable form for every XML attribute.
       const xmlForm = generateXMLForm(xmlDoc);
       exportPanel.appendChild(xmlForm);
   
-      // Create Export XML button.
       const exportXmlBtn = document.createElement('button');
       exportXmlBtn.classList.add('export-xml-btn');
       exportXmlBtn.textContent = 'Export XML';
@@ -636,7 +619,7 @@
       card.appendChild(exportPanel);
     }
     
-    // Generate an editable form for every XML attribute in the XML document.
+    // Generate an editable form for every XML attribute.
     function generateXMLForm(xmlDoc) {
       const container = document.createElement('div');
       const elements = xmlDoc.getElementsByTagName("*");
@@ -674,7 +657,7 @@
       return container;
     }
     
-    // Update the XML DOM with new values from the XML form.
+    // Update the XML DOM with new values from the form.
     function updateXmlFromForm(xmlDoc, xmlForm) {
       const inputs = xmlForm.querySelectorAll('input[type="text"]');
       const allElements = xmlDoc.getElementsByTagName("*");
@@ -701,7 +684,7 @@
       URL.revokeObjectURL(url);
     }
     
-    // Close the export panel and restore the UI (show all cards again).
+    // Close the export panel and restore the UI.
     function closeExportPanel(card, exportPanel) {
       if (exportPanel && card.contains(exportPanel)) {
         card.removeChild(exportPanel);
