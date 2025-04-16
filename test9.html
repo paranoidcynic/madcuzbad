@@ -16,19 +16,24 @@
     h1 {
       text-align: center;
     }
+    /* Controls area: file, search, and view toggle */
     #controls {
       text-align: center;
       margin-bottom: 20px;
     }
-    input[type="file"],
-    input[type="text"] {
+    #controls input[type="file"],
+    #controls input[type="text"] {
       padding: 10px;
       font-size: 16px;
       margin: 5px;
     }
-    input[type="text"] {
+    #controls input[type="text"] {
       width: 300px;
       max-width: 90%;
+    }
+    #controls label {
+      font-size: 16px;
+      margin-left: 10px;
     }
     /* Container for card output */
     #output {
@@ -36,6 +41,12 @@
       flex-wrap: wrap;
       gap: 20px;
       justify-content: center;
+      transition: all 0.3s ease;
+    }
+    /* If column view is active, display cards in column */
+    #output.column-view {
+      flex-direction: column;
+      align-items: center;
     }
     /* Card styling for each record */
     .card {
@@ -132,7 +143,7 @@
       text-align: center;
       margin-top: 10px;
     }
-    /* Active export view: the expanded card takes up all available space */
+    /* Active export view: the expanded card takes full available space */
     .active-card {
       display: flex;
       flex-direction: row;
@@ -194,6 +205,17 @@
     .export-xml-btn:hover {
       background-color: #005fa3;
     }
+    /* Styling for sub-tables generated from nested JSON */
+    .sub-table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 5px;
+      font-size: 12px;
+    }
+    .sub-table td, .sub-table th {
+      border: 1px solid #ccc;
+      padding: 4px;
+    }
     /* Responsive adjustments */
     @media (max-width: 600px) {
       .card {
@@ -225,6 +247,11 @@
   <div id="controls">
     <input type="file" id="jsonFileInput" accept=".json">
     <input type="text" id="searchInput" placeholder="Search JSON...">
+    <!-- Toggle between Card view and Column view -->
+    <label>
+      <input type="checkbox" id="viewToggle">
+      Column View
+    </label>
   </div>
   
   <!-- Container for cards -->
@@ -239,6 +266,9 @@
     let currentPage = 1;
     const itemsPerPage = 50; // Adjust for performance
     
+    // Global variable to track view mode: false = Card View, true = Column View.
+    let isColumnView = false;
+    
     // Base XML template (Control-M XML Template)
     const baseXMLTemplate = `<?xml version="1.0" encoding="utf-8"?>
 <!--Exported at {{EXPORT_DATE}}-->
@@ -249,6 +279,18 @@
         </JOB>
     </FOLDER>
 </DEFTABLE>`;
+    
+    // Event listener for view toggle switch
+    document.getElementById('viewToggle').addEventListener('change', function() {
+      isColumnView = this.checked;
+      // Toggle a class on the output container to adjust layout via CSS
+      const output = document.getElementById('output');
+      if (isColumnView) {
+        output.classList.add('column-view');
+      } else {
+        output.classList.remove('column-view');
+      }
+    });
     
     // File input handler – load and parse JSON
     document.getElementById('jsonFileInput').addEventListener('change', function(e) {
@@ -295,6 +337,57 @@
       document.getElementById('output').innerHTML = `<div class="error">${message}</div>`;
     }
     
+    // Helper function to create a sub-table if a value is a JSON object/array.
+    function createSubTable(json) {
+      const table = document.createElement('table');
+      table.classList.add('sub-table');
+      // If value is an array:
+      if (Array.isArray(json)) {
+        json.forEach((item, index) => {
+          const tr = document.createElement('tr');
+          const tdIndex = document.createElement('td');
+          tdIndex.textContent = index;
+          const tdValue = document.createElement('td');
+          if (typeof item === "object" && item !== null) {
+            tdValue.appendChild(createSubTable(item));
+          } else {
+            tdValue.textContent = item;
+          }
+          tr.appendChild(tdIndex);
+          tr.appendChild(tdValue);
+          table.appendChild(tr);
+        });
+      } else {
+        // Otherwise, assume object
+        for (let key in json) {
+          if (json.hasOwnProperty(key)) {
+            const tr = document.createElement('tr');
+            const tdKey = document.createElement('td');
+            tdKey.textContent = key;
+            const tdValue = document.createElement('td');
+            const subValue = json[key];
+            if (typeof subValue === "object" && subValue !== null) {
+              tdValue.appendChild(createSubTable(subValue));
+            } else {
+              tdValue.textContent = subValue;
+            }
+            tr.appendChild(tdKey);
+            tr.appendChild(tdValue);
+            table.appendChild(tr);
+          }
+        }
+      }
+      return table;
+    }
+    
+    // Modified formatValue: if value is an object/array, create a table.
+    function formatValue(value) {
+      if (typeof value === "object" && value !== null) {
+        return createSubTable(value);
+      }
+      return value;
+    }
+    
     // Render the current page of JSON object cards
     function renderPage(pageNumber) {
       const output = document.getElementById('output');
@@ -333,9 +426,14 @@
             cellKey.textContent = key;
             row.appendChild(cellKey);
   
-            // Value cell (editable when checkbox is checked)
+            // Value cell: use our modified formatValue.
             const cellValue = document.createElement('td');
-            cellValue.textContent = formatValue(obj[key]);
+            const formattedValue = formatValue(obj[key]);
+            if (typeof formattedValue === "string") {
+              cellValue.textContent = formattedValue;
+            } else {
+              cellValue.appendChild(formattedValue);
+            }
             row.appendChild(cellValue);
   
             // Checkbox cell
@@ -368,12 +466,12 @@
   
         card.appendChild(content);
   
-        // Toggle content display on header click
+        // Toggle card content visibility on header click.
         header.addEventListener('click', () => {
           content.style.display = (content.style.display === 'block') ? 'none' : 'block';
         });
   
-        // Add Export button at the bottom of the card
+        // Add Export button at the bottom of the card.
         const exportContainer = document.createElement('div');
         exportContainer.classList.add('export-btn-container');
         const exportBtn = document.createElement('button');
@@ -381,21 +479,19 @@
         exportBtn.textContent = 'Export to XML';
         exportBtn.addEventListener('click', function(e) {
           e.stopPropagation();
-          openExportPanel(card, obj);
+          // Toggle export panel on/off.
+          const existingPanel = card.querySelector('.export-panel');
+          if (existingPanel) {
+            closeExportPanel(card, existingPanel);
+          } else {
+            openExportPanel(card, obj);
+          }
         });
         exportContainer.appendChild(exportBtn);
         card.appendChild(exportContainer);
   
         output.appendChild(card);
       });
-    }
-    
-    // Helper function to format values for display
-    function formatValue(value) {
-      if (typeof value === 'object') {
-        return JSON.stringify(value, null, 2);
-      }
-      return value;
     }
     
     // Render pagination controls
@@ -438,31 +534,30 @@
     
     // --- EXPORT XML FUNCTIONALITY ---
     
-    // Open export panel for a specific card
+    // Open export panel for a specific card.
     function openExportPanel(card, jsonObj) {
-      // Hide all other cards so only the active card is visible
+      // Hide all other cards so only the active card is visible.
       document.querySelectorAll('.card').forEach(otherCard => {
         if (otherCard !== card) {
           otherCard.style.display = 'none';
         }
       });
       
-      // Wrap the existing card content into a new container if not already wrapped
+      // Wrap the existing card content into .card-main if not already wrapped.
       let cardMain = card.querySelector('.card-main');
       if (!cardMain) {
         cardMain = document.createElement('div');
         cardMain.classList.add('card-main');
-        // Move all current children of the card into cardMain
         while (card.firstChild) {
           cardMain.appendChild(card.firstChild);
         }
         card.appendChild(cardMain);
       }
       
-      // Mark the card as active so that it expands to full available space
+      // Mark the card as active so it expands to full available space.
       card.classList.add('active-card');
   
-      // Gather selected properties from the card (those with a checked checkbox)
+      // Gather selected properties from the card (those with a checked checkbox).
       const selectedFields = {};
       const rows = cardMain.querySelectorAll('table tr');
       rows.forEach(row => {
@@ -474,11 +569,11 @@
         }
       });
   
-      // Generate current export date string
+      // Generate current export date string.
       const now = new Date();
       const formattedDate = now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-GB');
   
-      // Prepare the XML content by replacing placeholders in the template using selected fields
+      // Prepare the XML content by replacing placeholders in the template using selected fields.
       let xmlContent = baseXMLTemplate.replace('{{EXPORT_DATE}}', formattedDate);
       for (const key in selectedFields) {
         if (selectedFields.hasOwnProperty(key)) {
@@ -488,15 +583,15 @@
         }
       }
   
-      // Parse the XML content into an XML DOM object
+      // Parse the XML content into an XML DOM object.
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlContent, "application/xml");
   
-      // Create the export panel container
+      // Create the export panel container.
       const exportPanel = document.createElement('div');
       exportPanel.classList.add('export-panel');
   
-      // --- ADD EDITABLE TITLE SECTION ---
+      // --- EDITABLE TITLE SECTION ---
       const titleSection = document.createElement('div');
       titleSection.classList.add('xml-section');
   
@@ -513,45 +608,37 @@
   
       const titleInput = document.createElement('input');
       titleInput.type = "text";
-      // Pre-fill the title with the JSON object's Name property if available
       titleInput.value = jsonObj.Name || "Untitled";
       titleField.appendChild(titleInput);
   
       titleSection.appendChild(titleField);
-      // Append the title section at the top of the export panel
       exportPanel.appendChild(titleSection);
-      // --- END OF EDITABLE TITLE SECTION ---
+      // --- END TITLE SECTION ---
   
-      // Build an editable form for every XML attribute
+      // Build an editable form for every XML attribute.
       const xmlForm = generateXMLForm(xmlDoc);
       exportPanel.appendChild(xmlForm);
   
-      // Create Export XML button
+      // Create Export XML button.
       const exportXmlBtn = document.createElement('button');
       exportXmlBtn.classList.add('export-xml-btn');
       exportXmlBtn.textContent = 'Export XML';
       exportXmlBtn.addEventListener('click', function() {
-        // Update the XML DOM with new values from the form
         updateXmlFromForm(xmlDoc, xmlForm);
-        // Serialize the XML and trigger download
         const serializer = new XMLSerializer();
         const updatedXml = serializer.serializeToString(xmlDoc);
-        // Use the title from the titleInput as the filename; default to "export" if empty
         const fileName = (titleInput.value.trim() || "export") + ".xml";
         downloadXML(updatedXml, fileName);
-        // Restore the UI by closing the export panel
         closeExportPanel(card, exportPanel);
       });
       exportPanel.appendChild(exportXmlBtn);
   
-      // Append the export panel to the active card
       card.appendChild(exportPanel);
     }
     
-    // Generate an editable form for each XML attribute in the XML document
+    // Generate an editable form for every XML attribute in the XML document.
     function generateXMLForm(xmlDoc) {
       const container = document.createElement('div');
-      // For every element with attributes in the XML, build a section
       const elements = xmlDoc.getElementsByTagName("*");
       for (let i = 0; i < elements.length; i++) {
         const el = elements[i];
@@ -559,12 +646,10 @@
           const section = document.createElement('div');
           section.classList.add('xml-section');
   
-          // Section header with the tag name
           const header = document.createElement('h3');
           header.textContent = el.tagName;
           section.appendChild(header);
   
-          // For each attribute, create a label and an editable input field
           for (let j = 0; j < el.attributes.length; j++) {
             const attr = el.attributes[j];
             const field = document.createElement('div');
@@ -577,7 +662,6 @@
             const input = document.createElement('input');
             input.type = "text";
             input.value = attr.value;
-            // Store element index and attribute name for updating later
             input.dataset.elementIndex = i;
             input.dataset.attributeName = attr.name;
             field.appendChild(input);
@@ -590,7 +674,7 @@
       return container;
     }
     
-    // Update the XML DOM with new values from the XML form
+    // Update the XML DOM with new values from the XML form.
     function updateXmlFromForm(xmlDoc, xmlForm) {
       const inputs = xmlForm.querySelectorAll('input[type="text"]');
       const allElements = xmlDoc.getElementsByTagName("*");
@@ -604,7 +688,7 @@
       });
     }
     
-    // Trigger download of the provided XML content with a given filename
+    // Trigger download of the XML content with a given filename.
     function downloadXML(xmlContent, fileName) {
       const blob = new Blob([xmlContent], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
@@ -617,22 +701,19 @@
       URL.revokeObjectURL(url);
     }
     
-    // Close the export panel and restore the original UI (show all cards again)
+    // Close the export panel and restore the UI (show all cards again).
     function closeExportPanel(card, exportPanel) {
       if (exportPanel && card.contains(exportPanel)) {
         card.removeChild(exportPanel);
       }
-      // Optionally unwrap the .card-main so that the card returns to its original structure
       const cardMain = card.querySelector('.card-main');
       if (cardMain) {
-        // Append all children of card-main back to card
         while (cardMain.firstChild) {
           card.appendChild(cardMain.firstChild);
         }
         card.removeChild(cardMain);
       }
       card.classList.remove('active-card');
-      // Re-show all cards
       document.querySelectorAll('.card').forEach(otherCard => {
         otherCard.style.display = '';
       });
